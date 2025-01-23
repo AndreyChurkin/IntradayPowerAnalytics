@@ -1,10 +1,13 @@
 """
-A more realistic market game where at each time step, there are two random prices at the market: 1) sell price, 2) buy price. 
-The agent wants to earn profit due to market arbitrage. That is, to buy at a lower price and then sell at a higher price. 
-The agent has 1000 steps per episode to perform such an arbitrage and get profit. The profit is equal to the prices of all sales minus the prices of purchases. 
+A simple market game where at each time step there are two random prices at the market: 1) sell price and 2) buy price.
+All prices are randomly generated in the range of [0:10].
+The agent wants to earn profit through market arbitrage, which means buying at a lower price and then selling at a higher price. 
+The agent has 100 steps per episode to perform such an arbitrage and get profit. The profit is equal to the prices of all sales minus the prices of purchases. 
 At each time step, the agent has three available actions {do nothing, buy, sell}.
+A reinforcement learning model is developed to train the agent to perform effective arbitrage.
+The agent's performance is then backtested and compared against the optimal trading decisions (found via mathematical optimisation) and a heuristic trading policy.
 
-! Note: this version of the code allows impossible actions, e.g., selling out of the empty inventory, but penalises them !
+Note: this version of the code allows impossible actions, e.g., selling out of the empty inventory, but penalises them.
 
 Andrey Churkin https://andreychurkin.ru/
 
@@ -19,14 +22,17 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 
+import os
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
 
 # Track start time
 start_time = time.time()
 
 
-class MoreRealisticMarketGameEnv(gym.Env):
+class RandomPriceMarketEnv(gym.Env):
     def __init__(self):
-        super(MoreRealisticMarketGameEnv, self).__init__()
+        super(RandomPriceMarketEnv, self).__init__()
         
         # Observation space: [sell_price, buy_price, inventory, step/max_step ratio]
         self.observation_space = Box(low=np.array([0, 0, 0, 0]),
@@ -44,9 +50,10 @@ class MoreRealisticMarketGameEnv(gym.Env):
         self.max_steps = 100
         self.total_profit = None
 
-    """ The same seed is used to reset the episode (for testing purposes) """
-    select_seed = 42 # <-- my deterministic test
-    # select_seed = None # <-- random episodes
+    """ Define a seed to generate the same prices in all episodes (for testing purposes) """
+    select_seed = None # <-- random episodes
+    # select_seed = 42 # <-- a deterministic test
+    
 
     def reset(self, seed=select_seed, options=None): 
         super().reset(seed=seed)
@@ -72,16 +79,15 @@ class MoreRealisticMarketGameEnv(gym.Env):
         done = False
 
         if action == 0:  # Do nothing
-            reward = 0
-            # reward = -0.1 # add penalty
+            # reward = 0
+            reward = -0.1 # add penalty
 
 
         elif action == 1:  # Buy
-            # reward = -self.buy_price
+            reward = -self.buy_price
             # reward = 0 # testing free buying
             # reward = 10 - self.buy_price # incentive to buy low
-            reward = (10 - self.buy_price)/10 # incentive to buy low, but selling is more important
-
+            # reward = (10 - self.buy_price)/10 # incentive to buy low, but selling is more important
 
             self.inventory += 1
 
@@ -96,9 +102,9 @@ class MoreRealisticMarketGameEnv(gym.Env):
                 Andrey: However, without a penalty, the agent learns never to buy. It only sells all the time.
                 """
                 # reward = -10 # add penalty
-                # reward = -1 # add penalty
+                reward = -1 # add penalty
                 # reward = -20 # add an even larger penalty
-                reward = 0 # do nothing - simply a useless action
+                # reward = 0 # do nothing - simply a useless action
 
         # Update total profit
         self.total_profit += reward
@@ -122,13 +128,13 @@ class MoreRealisticMarketGameEnv(gym.Env):
 
 
 # Instantiate the environment
-env = MoreRealisticMarketGameEnv()
+env = RandomPriceMarketEnv()
 
 # Wrap the environment to allow logging of training data
 env = Monitor(env)
 
 
-# Train a RF model
+# Select an RL method and train the model
 model = PPO("MlpPolicy", env, verbose=1)
 # model = DQN("MlpPolicy", env, verbose=1)
 
@@ -139,18 +145,9 @@ model.learn(total_timesteps=100_000)
 monitor_data_episode_rewards = env.get_episode_rewards()
 monitor_data_episode_lengths = env.get_episode_lengths()
 
-# print("monitor_data_episode_rewards = ",monitor_data_episode_rewards)
-# print("monitor_data_episode_lengths = ",monitor_data_episode_lengths)
-
 
 # Save the trained model
-# model.save("ppo_morerealisticmarketgame_1")
-# model.save("ppo_morerealisticmarketgame_2")
-model.save("ppo_morerealisticmarketgame_15_new_rewards_test")
-
-
-# model.save("dqn_morerealisticmarketgame_1")
-
+model.save("ppo_random_price_market_test2")
 
 
 print("\nThe model has been successfully trained. Total number of episodes = ",len(monitor_data_episode_lengths))
@@ -179,3 +176,9 @@ n_eval_episodes = 10 # episodes for testing the trained agent
 print(f"\nEvaluating the agent with {n_eval_episodes} episodes ...")
 mean_reward, std_reward = evaluate_policy(model, env, n_eval_episodes)
 print(f"Evaluation mean reward: {mean_reward:.2f} +/- {std_reward:.2f}")
+
+
+"""
+To test the trained agent and analyse its actions, run an evaluation script, e.g.:
+'random_price_market_1.0_run_with_gurobi.py'
+"""
