@@ -1,13 +1,14 @@
-A simple market game where at each time step there are two random prices at the market: 1) Ask price and 2) Bid price.
+# Example: Random price market
+**A simple market example with synthetic price data – useful for developing and testing reinforcement learning (RL) trading models**
+
+In this simple market game, at each time step there are two random prices at the market: 1) Ask price and 2) Bid price.
 All prices are randomly generated in the range of [0:10].
 The agent wants to earn profit through market arbitrage, which means buying at a lower price and then selling at a higher price. 
-The agent has 100 steps per episode to perform such an arbitrage and get profit. The profit is equal to the prices of all sales minus the prices of purchases. 
+The agent has 100 steps per episode to perform such an arbitrage and get profit. The total profit is equal to the prices of all sales minus the prices of purchases. 
 At each time step, the agent has three available actions {do nothing, buy, sell}.
-A reinforcement learning model is developed to train the agent to perform effective arbitrage.
+A reinforcement learning (RL) model is developed to train the agent to perform effective arbitrage.
 The agent's performance is then backtested and compared against the optimal trading decisions (found via mathematical optimisation) and a heuristic trading policy.
 
-# IntradayPowerAnalytics
-**AI and analytics tools for intraday power markets, including visualisation and analysis of electricity prices, anomaly detection in trading sessions, and trading algorithms for battery energy storage systems**
 
 ### EXAMPLES:
 To be added...
