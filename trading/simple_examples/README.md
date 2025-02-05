@@ -44,7 +44,7 @@ Then, the script visualises the agent's trading action and profits:
 <p align="center">
   <img src="plt_action_analysis_example.png"/>
 </p>
-It can be seen that Gurobi find the optimal trading decisions that maximise the total profit at the last step of the trading session. This is a useful (yet unrealistic) benchmark.
+It can be seen that Gurobi finds the optimal trading decisions that maximise the total profit at the last step of the trading session. This is a useful (yet unrealistic) benchmark.
 The RL agent does not see prices for all steps, i.e., it is myopic and observes only the prices at the current step. Nevertheless, it performs quite well (even better than the heuristic trading rule).
 
 The RL agent's performance can be evaluated across multiple runs in `random_price_market_performance_evaluation.py`. The following figure visualises the overall trading performance of the agent and Gurobi, where the areas display the min-max range of profits and the lines show the mean values:
@@ -58,4 +58,7 @@ An example of policy visualisation is shown below:
   <img src="plt_policy_visualisation_example.png"/>
 </p>
 The policy is interpretable. With empty inventory, the agent can only buy items or do nothing. This decision depends on the Ask price at a given time step. Then, with a non-empty inventory, there appears an area where selling is the optimal action. Such areas typically have high Bid prices and high Ask prices. This is consistent with the simple logic: if we can sell at a high price, we should better sell, especially when the Ask price is high and we cannot buy cheap.
+
+### FINAL NOTE:
+Note that this is a simplistic RL trading example developed for illustrative purposes. The agent's observation space [ask price, bid price, inventory] is made small intentionally for interpretability. The model can be further complexified to be applicable to realistic markets.
 
