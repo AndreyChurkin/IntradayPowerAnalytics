@@ -40,7 +40,7 @@ model = PPO.load("ppo_market_rl_agent_save", env)
 
 
 """ Set the number of runs to evaluate the agent's performance """
-N_runs = 100
+N_runs = 200
 
 all_cumulative_agent_rewards = []
 all_cumulative_optimal_rewards = []
@@ -191,7 +191,7 @@ plot_max = test_steps
 
 plt.rcParams['font.family'] = 'Courier New'
 
-plt.figure(figsize=(10, 5))
+plt.figure(figsize=(12, 4))
 
 time_steps = np.arange(0, test_steps)
 
@@ -203,7 +203,7 @@ plt.plot(time_steps, plot_agent_rewards_average, color="green", label="RL agent"
 plt.title(f'Performance evaluation across {N_runs} runs')
 plt.xlabel('Step')
 plt.ylabel('Сumulative reward')
-plt.legend(fontsize=8, loc='upper left')
+plt.legend(fontsize=10, loc='upper left')
 plt.grid(True, color='gray', alpha=0.2)  # Major grid
 plt.minorticks_on()  # Enable minor ticks
 plt.grid(True, which='minor', linestyle='-', color='gray', alpha=0.05)  # Minor grid
