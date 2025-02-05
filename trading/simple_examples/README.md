@@ -39,7 +39,23 @@ This Bid/Ask price assumption, as well as the reward and penalty values, are the
 ### ANALYSIS:
 Once the RL agent is trained, its actions can be evaluated in `random_price_market_run_and_analyse.py`.
 At the evaluation stage, 100 steps with random prices are generated. The agent observes these states one by one and takes trading actions.
-To analyse these actions, two trading benchmarks are introduced: 1) a backtesting mathematical optimisation model (solved with Gurobi), and 2) a heuristic trading policy.
+To analyse these actions, two trading benchmarks are introduced: 1) a backtesting mathematical optimisation model (solved with Gurobi), and 2) a heuristic trading policy (sell if price > 5, buy if price <5).
 Then, the script visualises the agent's trading action and profits:
+<p align="center">
+  <img src="plt_action_analysis_example.png"/>
+</p>
+It can be seen that Gurobi find the optimal trading decisions that maximise the total profit at the last step of the trading session. This is a useful (yet unrealistic) benchmark.
+The RL agent does not see prices for all steps, i.e., it is myopic and observes only the prices at the current step. Nevertheless, it performs quite well (even better than the heuristic trading rule).
 
+The RL agent's performance can be evaluated across multiple runs in `random_price_market_performance_evaluation.py`. The following figure visualises the overall trading performance of the agent and Gurobi, where the areas display the min-max range of profits and the lines show the mean values:
+<p align="center">
+  <img src="plt_performance_evaluation_example.png"/>
+</p>
+
+Finally, the RL agent's policy can be visualised using `random_price_market_visualise_policy.py`. The script creates a grid of points in the Bid-Ask price space. The agent observes prices at each point of the grid and provides the optimal action for combinations of prices and the inventory at the agent's disposal (that is, purchased items available for sale).
+An example of policy visualisation is shown below:
+<p align="center">
+  <img src="plt_policy_visualisation_example.png"/>
+</p>
+The policy is interpretable. With empty inventory, the agent can only buy items or do nothing. This decision depends on the Ask price at a given time step. Then, with a non-empty inventory, there appears an area where selling is the optimal action. Such areas typically have high Bid prices and high Ask prices. This is consistent with the simple logic: if we can sell at a high price, we should better sell, especially when the Ask price is high and we cannot buy cheap.
 
