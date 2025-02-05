@@ -37,6 +37,9 @@ Ask price can be much higher:
 This Bid/Ask price assumption, as well as the reward and penalty values, are the main parameters impacting the agent's training performance and potential trading profits.
 
 ### ANALYSIS:
-To be added...
+Once the RL agent is trained, its actions can be evaluated in `random_price_market_run_and_analyse.py`.
+At the evaluation stage, 100 steps with random prices are generated. The agent observes these states one by one and takes trading actions.
+To analyse these actions, two trading benchmarks are introduced: 1) a backtesting mathematical optimisation model (solved with Gurobi), and 2) a heuristic trading policy.
+Then, the script visualises the agent's trading action and profits:
 
 
