@@ -15,8 +15,8 @@ Andrey Churkin https://andreychurkin.ru/
 
 """
 
-from more_realistic_market_game_2_env import RandomPriceMarketEnv
-from more_realistic_market_game_2_train_and_save import evaluate_agent
+from random_price_market_env import RandomPriceMarketEnv
+from random_price_market_train_and_save import evaluate_agent
 from stable_baselines3 import PPO
 from stable_baselines3.common.monitor import Monitor
 
@@ -34,14 +34,8 @@ os.chdir(script_dir)
 # Instantiate the environment
 env = RandomPriceMarketEnv()
 
-# # Load the trained RL model:
-# model = PPO.load("ppo_market_game_2", env)
-# model = PPO.load("ppo_market_game_2_v2", env)
-# model = PPO.load("ppo_market_game_2_v4", env)
-# model = PPO.load("ppo_market_game_2_v5", env)
-# model = PPO.load("ppo_market_game_2_v6", env)
-model = PPO.load("ppo_market_game_2_v7", env)
-
+# Load the trained RL model:
+model = PPO.load("ppo_market_rl_agent_save", env)
 
 
 

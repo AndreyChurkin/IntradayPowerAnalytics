@@ -12,7 +12,7 @@ The agent's performance is then backtested and compared against the optimal trad
 
 ### ENVIRONMENT:
 The trading environment is formulated in `random_price_market_env.py` using the Gymnasium library.
-The RL agent can be trained and saved using `random_price_market_train_and_save.py`.
+The RL agent can be trained and saved using `random_price_market_train_and_save.py`. Stable Baselines3 library is used to apply RL algorithms.
 
 A critical feature of the environment is how the Bid/Ask prices are generated. There are three ways of generating random prices for this illustrative example, as defined in `price_generation_mode`:
 1. `all_random` – Bid and Ask prices are completely random and independent, within the [0:10] range (this assumption is less realistic, but is allows us to explore different price combinations)  

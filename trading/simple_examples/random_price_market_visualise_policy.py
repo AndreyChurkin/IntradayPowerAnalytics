@@ -15,7 +15,7 @@ Andrey Churkin https://andreychurkin.ru/
 
 """
 
-from more_realistic_market_game_2_env import RandomPriceMarketEnv
+from random_price_market_env import RandomPriceMarketEnv
 from stable_baselines3 import PPO, DQN
 import numpy as np
 import matplotlib.pyplot as plt
@@ -33,15 +33,7 @@ os.chdir(script_dir)
 env = RandomPriceMarketEnv()
 
 # # Load the trained RL model:
-# model = PPO.load("ppo_market_game_2", env)
-# model = PPO.load("ppo_market_game_2_v2", env) # no penalty
-# model = PPO.load("ppo_market_game_2_v3", env) # penalty -1
-# model = PPO.load("ppo_market_game_2_v4", env) # penalty -10
-# model = PPO.load("ppo_market_game_2_v5", env) # penalty -10, buying at 'Ask price'
-# model = PPO.load("ppo_market_game_2_v6", env) # penalty -10, buying at 'Ask price', all random prices
-model = PPO.load("ppo_market_game_2_v7", env) # penalty -10, Ask price can be much higher
-
-
+model = PPO.load("ppo_market_rl_agent_save", env)
 
 
 

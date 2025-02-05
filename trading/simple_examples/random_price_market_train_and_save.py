@@ -22,7 +22,7 @@ from gymnasium.spaces import Box, Discrete
 from stable_baselines3 import DQN, PPO, A2C, SAC, TD3
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.evaluation import evaluate_policy
-from more_realistic_market_game_2_env import RandomPriceMarketEnv
+from random_price_market_env import RandomPriceMarketEnv
 import numpy as np
 import time
 import matplotlib.pyplot as plt
@@ -123,7 +123,7 @@ if __name__ == "__main__":
     evaluate_agent(rl_model, env)
     
     # Save the RL model
-    rl_model.save("ppo_market_game_2_v7")
+    rl_model.save("ppo_market_rl_agent_save")
     print("\nThe trained model has been saved")
 
 
