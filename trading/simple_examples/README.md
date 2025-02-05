@@ -10,28 +10,33 @@ A reinforcement learning (RL) model is developed to train the agent to perform e
 The agent's performance is then backtested and compared against the optimal trading decisions (found via mathematical optimisation) and a heuristic trading policy.
 
 
-### EXAMPLES:
-To be added...
+### ENVIRONMENT:
+The trading environment is formulated in `random_price_market_env.py` using the Gymnasium library.
+The RL agent can be trained and saved using `random_price_market_train_and_save.py`.
 
+A critical feature of the environment is how the Bid/Ask prices are generated. There are three ways of generating random prices for this illustrative example, as defined in `price_generation_mode`:
+1. `all_random` – Bid and Ask prices are completely random and independent, within the [0:10] range (this assumption is less realistic, but is allows us to explore different price combinations)  
+2. `ask_always_slightly_higher` – Ask price is always a bit higher, but still within [0:10] range (this is a more realistic market representation)  
+3. `ask_always_higher` – Ask price can be much higher, but within [0:10] range (this is a more realistic market representation)
+
+Random price markets corresponding to these assumptions are shown below.
+
+Random and independent Bid/Ask prices:
 <p align="center">
   <img src="prices_example_all_random.png"/>
 </p>
-
+Ask price is always slightly higher:
+<p align="center">
+  <img src="prices_example_ask_always_slightly_higher.png"/>
+</p>
+Ask price can be much higher:
 <p align="center">
   <img src="prices_example_ask_always_higher.png"/>
 </p>
 
-<p align="center">
-  <img src="prices_example_ask_always_slightly_higher.png"/>
-</p>
+This Bid/Ask price assumption, as well as the reward and penalty values, are the main parameters impacting the agent's training performance and potential trading profits.
 
-### RUNNING THE TOOLS:
+### ANALYSIS:
 To be added...
 
-### AUTHORS:
-The tools are being developed by Dr. Andrey Churkin and Prof. Pierre Pinson at the Dyson School of Design Engineering, Imperial College London.
-This research is part of The ViPES2X project (Fully AI-driven Virtual Power Plant for Energy Storage and Power to X).
 
-
-### REFERENCES:
-To be added...
