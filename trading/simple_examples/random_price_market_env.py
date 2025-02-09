@@ -96,6 +96,7 @@ class RandomPriceMarketEnv(gym.Env):
         return observation, {}
 
     def step(self, action):
+        """ Note: when using real (not random synthetic price data), we may need to update the step counter at the end of the step, not at the beginning """
         self.current_step += 1
         reward = 0
         done = False
