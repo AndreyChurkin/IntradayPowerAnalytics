@@ -2,6 +2,10 @@
   <img src="IntradayPowerAnalytics_logo.png" alt="IntradayPowerAnalytics Logo" width="200"/>
 </p>
 
+<p align="center">
+  <img src="IntradayPowerAnalytics_logo_2.png" alt="IntradayPowerAnalytics Logo 2" width="200"/>
+</p>
+
 # IntradayPowerAnalytics
 **AI and analytics tools for intraday power markets, including visualisation and analysis of electricity prices, anomaly detection in trading sessions, and trading algorithms for battery energy storage systems**
 
