@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="IntradayPowerAnalytics_logo.png" alt="IntradayPowerAnalytics Logo" width="200"/>
+  <img src="IntradayPowerAnalytics_logo_3.png" alt="IntradayPowerAnalytics Logo 3" width="200"/>
 </p>
 
 # IntradayPowerAnalytics
