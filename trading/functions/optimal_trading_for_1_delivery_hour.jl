@@ -1,0 +1,360 @@
+"""
+This code analyses and plots the optimal trading actions within one trading session only (for one delivery hour).
+It will later be extended to consider 24 parallel trading sessions.
+
+Andrey Churkin 2025-11-19
+https://andreychurkin.ru/
+
+"""
+
+
+
+cd(dirname(@__FILE__))
+println(pwd())
+
+using CSV
+using DataFrames
+using Dates
+using JuMP, Gurobi
+using Plots, Plots.PlotMeasures
+using Statistics
+
+
+
+# # Select the intraday market data set to analyse:
+ID_market_data_file_path = "C://Users//achurkin//Documents//MEGA//Imperial College London//Pierre Pinson//models//IDC_EPEX_DK1_BestBidAsk_clean_v1.csv"
+
+
+ID_market_data = CSV.read(ID_market_data_file_path, DataFrame)
+# ID_market_data = CSV.read(ID_market_data_file_path, DataFrame, limit = 2*10^6) # <--- read a limited data set to save time
+
+
+# # Define the trading session to optimise (delivery hour)::
+delivery_hour_to_optimise = "2023-01-01 01:00:00"
+# delivery_hour_to_optimise = "2023-01-02 01:00:00"
+
+
+
+# # Remove orders in the records that are for sessions beyond the delivery hour:
+ID_market_data = filter(:delivery_start => ==(delivery_hour_to_optimise), ID_market_data)
+
+
+# # Remove duplicating rows (same prices/orders for the same millisecond timestamps):
+ID_market_data = unique(ID_market_data, [:ts, :delivery_start, :ask_price, :ask_volume, :bid_price, :bid_volume])
+
+
+# # Sort by timestamp to ensure correct chronological trades:
+ID_market_data = sort(ID_market_data, :ts)
+
+
+# # Convert timestamps of orders into hours till delivery time (for further plotting):
+hours_to_delivery = (Dates.value.(
+                    DateTime.(ID_market_data.ts, "yyyy-mm-dd HH:MM:SS.sss") 
+                    .- 
+                    DateTime.(delivery_hour_to_optimise, "yyyy-mm-dd HH:MM:SS.sss")
+                    ) / (60 * 60 * 1000)
+)
+
+ID_market_data.hours_to_delivery = hours_to_delivery
+
+# # Remove repeating orders from successive timestamps by nullifying their volumes (needed to make BESS backtesting more realistic)
+ID_market_data_copy_all_volumes = copy(ID_market_data)
+for i in 2:nrow(ID_market_data)
+    if ID_market_data.ask_price[i] == ID_market_data_copy_all_volumes.ask_price[i-1] && ID_market_data.ask_volume[i] == ID_market_data_copy_all_volumes.ask_volume[i-1]
+        ID_market_data.ask_volume[i] = 0.0
+    end
+    if ID_market_data.bid_price[i] == ID_market_data_copy_all_volumes.bid_price[i-1] && ID_market_data.bid_volume[i] == ID_market_data_copy_all_volumes.bid_volume[i-1]
+        ID_market_data.bid_volume[i] = 0.0
+    end
+end
+
+println()
+println("Trading session to be optimised for delivery hour ",delivery_hour_to_optimise)
+println("Total number of best bid/ask price changes = ",nrow(ID_market_data))
+println("The earliest order placed: ",minimum(hours_to_delivery)," h to delivery")
+println("The latest order placed: ",maximum(hours_to_delivery)," h to delivery")
+println()
+
+
+
+
+# # Read the day-ahead market data:
+DA_market_data_file_path = "C://Users//achurkin//Documents//MEGA//Imperial College London//Pierre Pinson//ViPES2X//Roar Nicolaisen//DK1 Day-ahead Prices_202301010000-202401010000.csv"
+DA_market_data = CSV.read(DA_market_data_file_path, DataFrame)
+
+# # Get the delivery start times from the day-ahead market data set:
+DA_delivery_start_times = split.(DA_market_data[!,"MTU (CET/CEST)"], " - ")
+
+# Parse the original string into a DateTime object
+delivery_hour_to_optimise_DateTime = DateTime(delivery_hour_to_optimise, "yyyy-mm-dd HH:MM:SS")
+
+# Convert the DateTime object into the desired format, find this delivery time in the day-ahead data, find the day-ahead price:
+delivery_hour_to_optimise_time_format2 = Dates.format(delivery_hour_to_optimise_DateTime, "dd.mm.yyyy HH:MM")
+DA_delivery_time_position = findall(x -> x == delivery_hour_to_optimise_time_format2, map(x -> x[1], DA_delivery_start_times))[1]
+DA_delivery_time_price = DA_market_data[!,"Day-ahead Price [EUR/MWh]"][DA_delivery_time_position][1]
+
+
+
+
+# # Define battery energy storage system (BESS) parameters, in MW and MWh:
+BESS_ch_power_max = 1.0 # MW
+BESS_dischch_power_max = 1.0 # MW
+""" 
+Note that charging more energy than BESS_ch_power_max is physically impossible within one delivery hour. 
+Such trading actions are possible, but would imply speculative trading.
+"""
+BESS_energy_max = 2.0 # MWh
+BESS_energy_0 = 0.0 # initial energy (state of charge), MWh
+BESS_energy_cost_0 = 20 # charging cost of the initial energy capacity, EUR/MW
+BESS_eta_ch = 0.90 # battery charging efficiency factor
+BESS_eta_disch = 0.90 # battery discharging efficiency factor
+Trading_and_Clearing_fee = 0.124 # EUR/MWh (check Nord Pool or EPEX fee schedule)
+
+
+
+
+""" Building and solving the BESS trading optimisation model """
+
+function optimise_BESS_in_1_session(session_df::DataFrame;
+    E_max::Float64,
+    P_ch_max::Float64,  P_disch_max::Float64,
+    eta_ch::Float64,    eta_disch::Float64,
+    SoC_init::Float64,  SoC_final::Float64,
+    E_cost_0,
+    fee
+    )
+
+    Δt = 1.0 # consider only 1-hour physical delivery products
+
+    T = nrow(session_df)
+
+    bid_prices = session_df.bid_price
+    ask_prices = session_df.ask_price
+    bid_volumes = session_df.bid_volume
+    ask_volumes = session_df.ask_volume
+
+    # # Define the model and the variables:
+    Model_1_session = Model(Gurobi.Optimizer)
+    @variable(Model_1_session, 0 <= ch[1:T] <= P_ch_max)
+    @variable(Model_1_session, 0 <= disch[1:T] <= P_disch_max)
+    @variable(Model_1_session, 0 <= SoC[1:T] <= E_max)
+    @variable(Model_1_session, x_ch[1:T], Bin)
+    @variable(Model_1_session, x_disch[1:T], Bin)
+
+    # # Linking charging actions with volumes:
+    @constraint(Model_1_session, [t=1:T], ch[t] <= P_ch_max * x_ch[t])
+    @constraint(Model_1_session, [t=1:T], disch[t] <= P_disch_max * x_disch[t])
+
+    # # Limiting actions by the ask/bid volumes available in the orders:
+    @constraint(Model_1_session, [t=1:T], ch[t] <= ask_volumes[t])
+    @constraint(Model_1_session, [t=1:T], disch[t] <= bid_volumes[t])
+
+    # # Prevent simultaneous charge & discharge:
+    @constraint(Model_1_session, [t=1:T], x_ch[t] + x_disch[t] <= 1)
+
+    # # SoC dynamics:
+    @constraint(Model_1_session, SoC[1] == SoC_init + (eta_ch*ch[1] - disch[1]/eta_disch) * Δt)
+    @constraint(Model_1_session, [t=2:T], SoC[t] == SoC[t-1] + (eta_ch*ch[t] - disch[t]/eta_disch) * Δt)
+    @constraint(Model_1_session, SoC[T] == SoC_final)
+
+    # # Objective:
+    @objective(Model_1_session, Max, SoC_init*E_cost_0 
+                + sum(((bid_prices[t] - fee)*disch[t] - (ask_prices[t] + fee)*ch[t]) * Δt for t in 1:T)
+    )
+
+    optimize!(Model_1_session)
+
+    if termination_status(Model_1_session) == MOI.OPTIMAL
+        printstyled("\n✅ Optimal solution found, objective value = ", objective_value(Model_1_session), color = :green)
+    else
+        printstyled("\n❌ WARNING: Solver did not return an optimal solution. Status = ", termination_status(Model_1_session), color = :red)
+    end
+
+    BESS_optimisation_results = DataFrame(
+        ts = session_df.ts,
+        hours_to_delivery = session_df.hours_to_delivery,
+        ask_price = session_df.ask_price,
+        bid_price = session_df.bid_price,
+        action_ch = Int.(value.(ch) .> 1e-6),
+        action_disch = Int.(value.(disch) .> 1e-6),
+        volume_ch = value.(ch),
+        volume_disch = value.(disch),
+        SoC = value.(SoC),
+        cum_revenue = cumsum((value.(disch) .* session_df.bid_price) - (value.(ch) .* session_df.ask_price))
+    )
+
+    return objective_value(Model_1_session), BESS_optimisation_results
+
+end
+
+
+
+BESS_objective_value, BESS_optimisation_results = optimise_BESS_in_1_session(ID_market_data;
+    E_max = BESS_energy_max, 
+    P_ch_max = BESS_ch_power_max, 
+    P_disch_max = BESS_dischch_power_max, 
+    eta_ch = BESS_eta_ch, 
+    eta_disch = BESS_eta_disch, 
+    SoC_init = BESS_energy_0, 
+    SoC_final = BESS_energy_0, 
+    E_cost_0 = BESS_energy_cost_0,
+    fee = Trading_and_Clearing_fee
+)
+
+BESS_optimisation_results_only_actions = filter(row -> (row.volume_ch != 0 || row.volume_disch != 0),
+                  BESS_optimisation_results
+)
+
+println("\nBESS optimisation results, actions only:")
+println(BESS_optimisation_results_only_actions)
+
+
+
+
+""" Visualising the intraday prices together with the day-ahead price and the optimal BESS trading actions """
+
+fz = 18 # fontsize
+
+plt1 = plot(
+    title = "DK1 intraday continuous market for delivery at "*delivery_hour_to_optimise
+    *"\nTotal number of price changes: "*string(size(ID_market_data)[1])
+    *"\u00A0\u00A0\u00A0\u00A0 Earliest order: "*string(round(minimum(ID_market_data.hours_to_delivery),digits=2))*" h"
+    *"\u00A0\u00A0\u00A0\u00A0 Latest order: "*string(round(maximum(ID_market_data.hours_to_delivery),digits=2))*" h"
+    *"\nDay-ahead price : "*string(DA_delivery_time_price)*" EUR/MWh"
+    *"\u00A0\u00A0\u00A0\u00A0 Total number of BESS optimal actions: "*string(nrow(BESS_optimisation_results_only_actions))
+    *"\u00A0\u00A0\u00A0\u00A0Total profit: "*string(round(BESS_objective_value,digits=2))*" EUR",
+
+    xlabel = "Time of bid/ask orders (hours prior to delivery)",
+    ylabel = "Price, EUR/MWh",
+
+    size = (2000,1000), # width and height of the whole plot (in px)
+    # size = (2000,1500), # width and height of the whole plot (in px)
+
+    # xlim = (-33, 0), # maximum 33 hours before the delivery time
+    xlim = (minimum(hours_to_delivery), 0),
+
+    # ylim = (DA_delivery_time_price-100, DA_delivery_time_price+100),
+    # ylim = (mean(ID_market_data.bid_price) - std(ID_market_data.bid_price), mean(ID_market_data.bid_price) + std(ID_market_data.bid_price)),
+    # ylim = (DA_delivery_time_price - std(ID_market_data.bid_price), DA_delivery_time_price + std(ID_market_data.bid_price)),
+    ylim = (DA_delivery_time_price - std(ID_market_data.bid_price)/2, DA_delivery_time_price + std(ID_market_data.bid_price)/2),
+
+    # ylim = (-11, 2),
+
+
+    xtickfontsize=fz, ytickfontsize=fz,
+    fontfamily = "Courier", 
+    titlefontsize = fz-3,
+    xguidefontsize = fz,
+    yguidefontsize = fz,
+
+    # legend = false,
+    legendfont = fz-3,
+    # legend = :outertop,
+    legend = :topleft,
+    
+    framestyle = :box,
+
+    # margin = 10mm,
+    left_margin = 20mm,
+    right_margin = 10mm,
+    top_margin = 10mm,
+    bottom_margin = 10mm,
+    
+    minorgrid = :true,
+)
+
+plot!(plt1,
+    [-33,1],
+    [DA_delivery_time_price,DA_delivery_time_price],
+    label = "Day-ahead price",
+    # color = :pink,
+    color = :grey,
+    linestyle = :dash,
+    w = 4
+)
+
+plot!(plt1,
+    ID_market_data.hours_to_delivery, # <-- plot as hours to delivery
+    ID_market_data.ask_price, 
+    label = "Best ask price",
+    # markersize = 5,
+    # markerstrokewidth = 0,
+    alpha = 0.6,
+    # color = palette(:tab10)[5]
+    color = palette(:bluesreds)[1],
+    # seriestype = :steppre,
+    seriestype = :steppost,
+    # marker = :circle,
+    w = 3
+)
+
+plot!(plt1,
+    ID_market_data.hours_to_delivery, # <-- plot as hours to delivery
+    ID_market_data.bid_price, 
+    label = "Best bid price",
+    # markersize = 5,
+    # markerstrokewidth = 0,
+    alpha = 0.6,
+    # color = palette(:tab10)[3]
+    color = palette(:bluesreds)[3],
+    # seriestype = :steppre,
+    seriestype = :steppost,
+    # marker = :circle,
+    w = 3
+)
+
+BESS_optimisation_results_only_charging = filter(:action_ch => ==(1), BESS_optimisation_results_only_actions)
+BESS_optimisation_results_only_discharging = filter(:action_disch => ==(1), BESS_optimisation_results_only_actions)
+
+charging_marker_sizes = 14 .* BESS_optimisation_results_only_charging.volume_ch
+discharging_marker_sizes = 14 .* BESS_optimisation_results_only_discharging.volume_disch
+
+
+scatter!(plt1,
+    BESS_optimisation_results_only_charging.hours_to_delivery,
+    BESS_optimisation_results_only_charging.ask_price, 
+    label = "BESS charging actions",
+    # markersize = 10,
+    markersize = charging_marker_sizes,
+    markerstrokewidth = 0.0,
+    alpha = 0.65,
+    # color = "#1b9e77",
+    color = palette(:bluesreds)[1],
+    # markerstrokecolor = palette(:bluesreds)[1],
+    # label = false,
+    # legend = false
+)
+
+# for charging_i = 1:nrow(BESS_optimisation_results_only_charging)
+#     annotate!(plt1,
+#         BESS_optimisation_results_only_charging.hours_to_delivery[charging_i],
+#         BESS_optimisation_results_only_charging.ask_price[charging_i],
+#         text(string.(round.(BESS_optimisation_results_only_charging.volume_ch[charging_i], digits=2)), :black, 8)
+#     )
+# end
+
+scatter!(plt1,
+    BESS_optimisation_results_only_discharging.hours_to_delivery,
+    BESS_optimisation_results_only_discharging.bid_price, 
+    label = "BESS discharging actions",
+    # markersize = 10,
+    markersize = discharging_marker_sizes,
+    markerstrokewidth = 0.0,
+    alpha = 0.65,
+    # color = "#d95f02",
+    color = palette(:bluesreds)[3],
+    # label = false,
+    # legend = false
+)
+
+# for discharging_i = 1:nrow(BESS_optimisation_results_only_discharging)
+#     annotate!(plt1,
+#         BESS_optimisation_results_only_discharging.hours_to_delivery[discharging_i],
+#         BESS_optimisation_results_only_discharging.bid_price[discharging_i],
+#         text(string.(round.(BESS_optimisation_results_only_discharging.volume_disch[discharging_i], digits=2)), :black, 8)
+#     )
+# end
+
+display(plt1)
+
+
