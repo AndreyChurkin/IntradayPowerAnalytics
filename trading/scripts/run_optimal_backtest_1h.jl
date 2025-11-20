@@ -2,7 +2,8 @@
 This code analyses and plots the optimal trading actions within one trading session only (for one delivery hour).
 It will later be extended to consider 24 parallel trading sessions.
 
-Andrey Churkin 2025-11-19
+
+Andrey Churkin
 https://andreychurkin.ru/
 
 """
@@ -16,6 +17,7 @@ using CSV
 using DataFrames
 using Dates
 using JuMP, Gurobi
+using Suppressor
 using Plots, Plots.PlotMeasures
 using Statistics
 
@@ -29,10 +31,9 @@ ID_market_data = CSV.read(ID_market_data_file_path, DataFrame)
 # ID_market_data = CSV.read(ID_market_data_file_path, DataFrame, limit = 2*10^6) # <--- read a limited data set to save time
 
 
-# # Define the trading session to optimise (delivery hour)::
+# # Define the trading session to optimise (delivery hour):
 delivery_hour_to_optimise = "2023-01-01 01:00:00"
 # delivery_hour_to_optimise = "2023-01-02 01:00:00"
-
 
 
 # # Remove orders in the records that are for sessions beyond the delivery hour:

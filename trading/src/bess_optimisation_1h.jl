@@ -37,6 +37,7 @@ function optimise_BESS_in_1_session(session_df::DataFrame;
 
     # # Define the model and the variables:
     Model_1_session = Model(Gurobi.Optimizer)
+    # set_silent(Model_1_session)
     @variable(Model_1_session, 0 <= ch[1:T] <= P_ch_max)
     @variable(Model_1_session, 0 <= disch[1:T] <= P_disch_max)
     @variable(Model_1_session, 0 <= SoC[1:T] <= E_max)
@@ -65,6 +66,7 @@ function optimise_BESS_in_1_session(session_df::DataFrame;
     )
 
     optimize!(Model_1_session)
+
 
     if termination_status(Model_1_session) == MOI.OPTIMAL
         printstyled("\n✅ Optimal solution found, objective value = ", objective_value(Model_1_session), color = :green)
