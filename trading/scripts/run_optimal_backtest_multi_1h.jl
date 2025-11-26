@@ -31,13 +31,31 @@ ID_market_data_full = CSV.read(ID_market_data_file_path, DataFrame)
 
 # # Define the vector of trading sessions to optimise (delivery hours):
 all_unique_delivery_hours = sort(unique(ID_market_data_full.delivery_start))
-delivery_hours_to_optimise = all_unique_delivery_hours[1:end]
+# delivery_hours_to_optimise = all_unique_delivery_hours[1:end]
+delivery_hours_to_optimise = all_unique_delivery_hours[2019:end]
+
 
 
 # # Read the day-ahead market data:
 DA_market_data_file_path = "C://Users//achurkin//Documents//MEGA//Imperial College London//Pierre Pinson//ViPES2X//Roar Nicolaisen//DK1 Day-ahead Prices_202301010000-202401010000.csv"
 DA_market_data = CSV.read(DA_market_data_file_path, DataFrame)
 DA_delivery_start_times = split.(DA_market_data[!,"MTU (CET/CEST)"], " - ")
+
+DA_missing_rows = findall(ismissing, DA_market_data[!, "Day-ahead Price [EUR/MWh]"])
+if length(DA_missing_rows) != 0
+    println()
+    printstyled("\nWARNING: Day-ahead price data is missing for ",length(DA_missing_rows)," delivery hours:", color = :red)
+    for missing_row in DA_missing_rows
+        println()
+        printstyled(DA_market_data[missing_row,:]["MTU (CET/CEST)"], color = :red)
+
+        DA_market_data[missing_row,"Day-ahead Price [EUR/MWh]"] = 
+            0.5*(DA_market_data[missing_row-1,"Day-ahead Price [EUR/MWh]"] + DA_market_data[missing_row+1,"Day-ahead Price [EUR/MWh]"])
+    
+    end
+    printstyled("\nMissing DA prices are replaced with the average prices of neighbouring hours", color = :red)
+end
+
 
 
 # # Define battery energy storage system (BESS) parameters, in MW and MWh:
@@ -53,7 +71,6 @@ BESS_energy_cost_0 = 20 # charging cost of the initial energy capacity, EUR/MW
 BESS_eta_ch = 0.90 # battery charging efficiency factor
 BESS_eta_disch = 0.90 # battery discharging efficiency factor
 Trading_and_Clearing_fee = 0.124 # EUR/MWh (check Nord Pool or EPEX fee schedule)
-
 
 
 
@@ -153,5 +170,69 @@ for session = 1:length(delivery_hours_to_optimise)
 
 end
 
-# CSV.write("..//results//bess_trading_summary_per_1h_session.csv",
-#           bess_trading_summary_per_1h_session)
+
+CSV.write("..//results//bess_trading_summary_per_1h_session.csv",
+          bess_trading_summary_per_1h_session
+)
+
+
+
+
+""" This is a preliminary visualisation of multiple 1-hour intraday trading sessions. It will be improved later """
+
+using StatsPlots
+
+histogram(
+    bess_trading_summary_per_1h_session.profit,
+    bins = 100,
+    xlabel = "Profit, EUR",
+    ylabel = "Frequency",
+    title = "Distribution of BESS trading profit (in 1h sessions)",
+    legend = false,
+    titlefont = 8,
+    fontfamily = "Courier"
+)
+
+histogram(
+    bess_trading_summary_per_1h_session.number_of_actions,
+    bins = 100,
+    xlabel = "Number of actions",
+    ylabel = "Frequency",
+    title = "Total number of BESS trading actions (in 1h sessions)",
+    legend = false,
+    titlefont = 8,
+    fontfamily = "Courier",
+    color = palette(:tab10)[5]
+)
+
+scatter(
+    bess_trading_summary_per_1h_session.number_of_actions,
+    bess_trading_summary_per_1h_session.profit,
+    xlabel = "Total number of optimal BESS actions",
+    ylabel = "Profit per session, EUR",
+    size = (1100,1000), 
+    # xlim = (-20, 1000),
+    # ylim = (-200, 10000),
+    xtickfontsize=fz, ytickfontsize=fz,
+    fontfamily = "Courier", 
+    titlefontsize = fz-3,
+    xguidefontsize = fz,
+    yguidefontsize = fz,
+    legendfont = fz-3,
+    legend = :topleft,
+    framestyle = :box,
+    # margin = 10mm,
+    left_margin = 20mm,
+    right_margin = 10mm,
+    top_margin = 10mm,
+    bottom_margin = 10mm,
+    minorgrid = :true
+)
+
+
+action_profit_correlation = cor(
+    bess_trading_summary_per_1h_session.number_of_actions,
+    bess_trading_summary_per_1h_session.profit
+)
+
+println("Action-profit correlation: ", round(action_profit_correlation, digits=3))

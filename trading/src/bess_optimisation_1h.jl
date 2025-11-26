@@ -9,6 +9,10 @@ Outputs:
 - The objective value (maximum achievable trading profit).
 - DataFrame with the optimal BESS trading actions.
 
+Note that state of charge (SoC) in this model is virtual and session-based.
+It does not correspond to the physical battery SoC over real time.
+BESS cannot charge/discharge multiple times for a single delivery hour.
+Thus, the model captures speculative trading where BESS takes different orders and trades on the arbitrage within one delivery hour.
 
 Andrey Churkin
 https://andreychurkin.ru/

@@ -1,6 +1,6 @@
 """
-This code analyses and plots the optimal trading actions within one trading session only (for one delivery hour).
-It will later be extended to consider 24 parallel trading sessions.
+This code analyses and plots the optimal trading actions across 24 parallel and partially overlapping intraday trading sessions (corresponding to one full delivery day).
+Trading decisions are coupled across delivery hours via the state of charge (SoC) dynamics and power constraints.
 
 
 Andrey Churkin
@@ -31,24 +31,12 @@ ID_market_data = CSV.read(ID_market_data_file_path, DataFrame)
 # ID_market_data = CSV.read(ID_market_data_file_path, DataFrame, limit = 2*10^6) # <--- read a limited data set to save time
 
 
-# # Define the trading session to optimise (delivery hour):
-# delivery_hour_to_optimise = "2023-01-01 01:00:00"
-# delivery_hour_to_optimise = "2023-01-02 01:00:00"
-# delivery_hour_to_optimise = "2023-12-30 15:00:00" # why no profit? mistake?
-# delivery_hour_to_optimise = "2023-06-25 20:00:00" # high profit, few actions
-# delivery_hour_to_optimise = "2023-05-28 11:00:00" # high profit, a lot of actions
-# delivery_hour_to_optimise = "2023-05-28 12:00:00" # high profit, a lot of actions
-# delivery_hour_to_optimise = "2023-07-02 13:00:00" # high profit, a lot of actions. -275EUR prices? why??
-# delivery_hour_to_optimise = "2023-05-28 14:00:00" # high profit, a lot of actions. negative prices? why??
-# delivery_hour_to_optimise = "2023-05-28 12:00:00"
-# delivery_hour_to_optimise = "2023-05-28 15:00:00" # +-
-# delivery_hour_to_optimise = "2023-08-07 12:00:00" # +-
-delivery_hour_to_optimise = "2023-08-08 02:00:00"
+# # Define the trading day to optimise:
+delivery_day_to_optimise = Date("2023-01-01")
 
 
-
-# # Remove orders in the records that are for sessions beyond the delivery hour:
-ID_market_data = filter(:delivery_start => ==(delivery_hour_to_optimise), ID_market_data)
+# # Remove orders for sessions beyond the trading day:
+ID_market_data = filter(row -> Date(first(row.delivery_start, 10)) == delivery_day_to_optimise, ID_market_data)
 
 
 # # Remove duplicating rows (same prices/orders for the same millisecond timestamps):
@@ -63,29 +51,34 @@ ID_market_data = sort(ID_market_data, :ts)
 hours_to_delivery = (Dates.value.(
                     DateTime.(ID_market_data.ts, "yyyy-mm-dd HH:MM:SS.sss") 
                     .- 
-                    DateTime.(delivery_hour_to_optimise, "yyyy-mm-dd HH:MM:SS.sss")
+                    DateTime.(ID_market_data.delivery_start, "yyyy-mm-dd HH:MM:SS.sss")
                     ) / (60 * 60 * 1000)
 )
 
 ID_market_data.hours_to_delivery = hours_to_delivery
 
+unique_delivery_starts = unique(ID_market_data.delivery_start)
+
 # # Remove repeating orders from successive timestamps by nullifying their volumes (needed to make BESS backtesting more realistic)
 successive_ask_order_removals_count = 0
 successive_bid_order_removals_count = 0
-ID_market_data_copy_all_volumes = copy(ID_market_data)
-for i in 2:nrow(ID_market_data)
-    if ID_market_data.ask_price[i] == ID_market_data_copy_all_volumes.ask_price[i-1] && ID_market_data.ask_volume[i] == ID_market_data_copy_all_volumes.ask_volume[i-1]
-        ID_market_data.ask_volume[i] = 0.0
-        global successive_ask_order_removals_count += 1
-    end
-    if ID_market_data.bid_price[i] == ID_market_data_copy_all_volumes.bid_price[i-1] && ID_market_data.bid_volume[i] == ID_market_data_copy_all_volumes.bid_volume[i-1]
-        ID_market_data.bid_volume[i] = 0.0
-        global successive_bid_order_removals_count += 1
+ID_market_data_grouped = groupby(ID_market_data, :delivery_start)
+for group in ID_market_data_grouped
+    group_copy_all_volumes = copy(group)
+    for i in 2:nrow(group)
+        if group.ask_price[i] == group_copy_all_volumes.ask_price[i-1] && group.ask_volume[i] == group_copy_all_volumes.ask_volume[i-1]
+            group.ask_volume[i] = 0.0
+            global successive_ask_order_removals_count += 1
+        end
+        if group.bid_price[i] == group_copy_all_volumes.bid_price[i-1] && group.bid_volume[i] == group_copy_all_volumes.bid_volume[i-1]
+            group.bid_volume[i] = 0.0
+            global successive_bid_order_removals_count += 1
+        end
     end
 end
 
 println()
-println("Trading session to be optimised for delivery hour ",delivery_hour_to_optimise)
+println("Trading session to be optimised for delivery day ",delivery_day_to_optimise)
 println("Total number of best bid/ask price changes = ",nrow(ID_market_data))
 println(successive_ask_order_removals_count, " successive Ask orders with the same price/volume have been removed")
 println(successive_bid_order_removals_count, " successive Bid orders with the same price/volume have been removed")
@@ -134,7 +127,7 @@ Trading_and_Clearing_fee = 0.124 # EUR/MWh (check Nord Pool or EPEX fee schedule
 
 """ Building and solving the BESS trading optimisation model """
 
-include("../src/bess_optimisation_1h.jl")
+include("../src/bess_optimisation_24h.jl")
 
 BESS_objective_value, BESS_optimisation_results = optimise_BESS_in_1_session(ID_market_data;
     E_max = BESS_energy_max, 
@@ -183,11 +176,9 @@ plt1 = plot(
     # ylim = (DA_delivery_time_price-100, DA_delivery_time_price+100),
     # ylim = (mean(ID_market_data.bid_price) - std(ID_market_data.bid_price), mean(ID_market_data.bid_price) + std(ID_market_data.bid_price)),
     # ylim = (DA_delivery_time_price - std(ID_market_data.bid_price), DA_delivery_time_price + std(ID_market_data.bid_price)),
-    # ylim = (DA_delivery_time_price - std(ID_market_data.bid_price)/2, DA_delivery_time_price + std(ID_market_data.bid_price)/2),
+    ylim = (DA_delivery_time_price - std(ID_market_data.bid_price)/2, DA_delivery_time_price + std(ID_market_data.bid_price)/2),
 
     # ylim = (-11, 2),
-
-    # ylim = (0, 3000),
 
 
     xtickfontsize=fz, ytickfontsize=fz,
@@ -252,66 +243,63 @@ plot!(plt1,
     w = 3
 )
 
-if nrow(BESS_optimisation_results_only_actions) != 0
-    BESS_optimisation_results_only_charging = filter(:action_ch => ==(1), BESS_optimisation_results_only_actions)
-    BESS_optimisation_results_only_discharging = filter(:action_disch => ==(1), BESS_optimisation_results_only_actions)
+BESS_optimisation_results_only_charging = filter(:action_ch => ==(1), BESS_optimisation_results_only_actions)
+BESS_optimisation_results_only_discharging = filter(:action_disch => ==(1), BESS_optimisation_results_only_actions)
 
-    charging_marker_sizes = 14 .* BESS_optimisation_results_only_charging.volume_ch
-    discharging_marker_sizes = 14 .* BESS_optimisation_results_only_discharging.volume_disch
+charging_marker_sizes = 14 .* BESS_optimisation_results_only_charging.volume_ch
+discharging_marker_sizes = 14 .* BESS_optimisation_results_only_discharging.volume_disch
 
 
-    scatter!(plt1,
-        BESS_optimisation_results_only_charging.hours_to_delivery,
-        BESS_optimisation_results_only_charging.ask_price, 
-        label = "BESS charging actions",
-        # markersize = 10,
-        markersize = charging_marker_sizes,
-        markerstrokewidth = 0.0,
-        alpha = 0.65,
-        # color = "#1b9e77",
-        color = palette(:bluesreds)[1],
-        # markerstrokecolor = palette(:bluesreds)[1],
-        # label = false,
-        # legend = false
-    )
+scatter!(plt1,
+    BESS_optimisation_results_only_charging.hours_to_delivery,
+    BESS_optimisation_results_only_charging.ask_price, 
+    label = "BESS charging actions",
+    # markersize = 10,
+    markersize = charging_marker_sizes,
+    markerstrokewidth = 0.0,
+    alpha = 0.65,
+    # color = "#1b9e77",
+    color = palette(:bluesreds)[1],
+    # markerstrokecolor = palette(:bluesreds)[1],
+    # label = false,
+    # legend = false
+)
 
-    # for charging_i = 1:nrow(BESS_optimisation_results_only_charging)
-    #     annotate!(plt1,
-    #         BESS_optimisation_results_only_charging.hours_to_delivery[charging_i],
-    #         BESS_optimisation_results_only_charging.ask_price[charging_i],
-    #         text(string.(round.(BESS_optimisation_results_only_charging.volume_ch[charging_i], digits=2)), :black, 8)
-    #     )
-    # end
+# for charging_i = 1:nrow(BESS_optimisation_results_only_charging)
+#     annotate!(plt1,
+#         BESS_optimisation_results_only_charging.hours_to_delivery[charging_i],
+#         BESS_optimisation_results_only_charging.ask_price[charging_i],
+#         text(string.(round.(BESS_optimisation_results_only_charging.volume_ch[charging_i], digits=2)), :black, 8)
+#     )
+# end
 
-    scatter!(plt1,
-        BESS_optimisation_results_only_discharging.hours_to_delivery,
-        BESS_optimisation_results_only_discharging.bid_price, 
-        label = "BESS discharging actions",
-        # markersize = 10,
-        markersize = discharging_marker_sizes,
-        markerstrokewidth = 0.0,
-        alpha = 0.65,
-        # color = "#d95f02",
-        color = palette(:bluesreds)[3],
-        # label = false,
-        # legend = false
-    )
+scatter!(plt1,
+    BESS_optimisation_results_only_discharging.hours_to_delivery,
+    BESS_optimisation_results_only_discharging.bid_price, 
+    label = "BESS discharging actions",
+    # markersize = 10,
+    markersize = discharging_marker_sizes,
+    markerstrokewidth = 0.0,
+    alpha = 0.65,
+    # color = "#d95f02",
+    color = palette(:bluesreds)[3],
+    # label = false,
+    # legend = false
+)
 
-    # for discharging_i = 1:nrow(BESS_optimisation_results_only_discharging)
-    #     annotate!(plt1,
-    #         BESS_optimisation_results_only_discharging.hours_to_delivery[discharging_i],
-    #         BESS_optimisation_results_only_discharging.bid_price[discharging_i],
-    #         text(string.(round.(BESS_optimisation_results_only_discharging.volume_disch[discharging_i], digits=2)), :black, 8)
-    #     )
-    # end
-
-end
+# for discharging_i = 1:nrow(BESS_optimisation_results_only_discharging)
+#     annotate!(plt1,
+#         BESS_optimisation_results_only_discharging.hours_to_delivery[discharging_i],
+#         BESS_optimisation_results_only_discharging.bid_price[discharging_i],
+#         text(string.(round.(BESS_optimisation_results_only_discharging.volume_disch[discharging_i], digits=2)), :black, 8)
+#     )
+# end
 
 display(plt1)
 
 
-savefig("../results/run_optimal_backtest_1h_test4.png")
-# savefig("../results/run_optimal_backtest_1h_test1.svg")
-# savefig("../results/run_optimal_backtest_1h_test1.pdf")
+# savefig("../results/run_optimal_backtest_24h_test1.png")
+# savefig("../results/run_optimal_backtest_24h_test1.svg")
+# savefig("../results/run_optimal_backtest_24h_test1.pdf")
 
 
