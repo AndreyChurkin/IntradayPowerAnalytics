@@ -26,7 +26,7 @@ using Statistics
 # # Select the intraday market data set to analyse:
 ID_market_data_file_path = "C://Users//achurkin//Documents//MEGA//Imperial College London//Pierre Pinson//models//IDC_EPEX_DK1_BestBidAsk_clean_v1.csv"
 ID_market_data_full = CSV.read(ID_market_data_file_path, DataFrame)
-# ID_market_data_full = CSV.read(ID_market_data_file_path, DataFrame, limit = 2*10^6) # <--- read a limited data set to save time
+# ID_market_data_full = CSV.read(ID_market_data_file_path, DataFrame, limit = 2*10^6) # <--- read a limited data set to save time during testing
 
 
 # # Define the vector of trading sessions to optimise (delivery hours):

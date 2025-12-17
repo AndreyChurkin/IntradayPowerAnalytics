@@ -2,7 +2,6 @@
 This code analyses and plots the optimal trading actions within one trading session only (for one delivery hour).
 It will later be extended to consider 24 parallel trading sessions.
 
-
 Andrey Churkin
 https://andreychurkin.ru/
 
@@ -28,11 +27,11 @@ ID_market_data_file_path = "C://Users//achurkin//Documents//MEGA//Imperial Colle
 
 
 ID_market_data = CSV.read(ID_market_data_file_path, DataFrame)
-# ID_market_data = CSV.read(ID_market_data_file_path, DataFrame, limit = 2*10^6) # <--- read a limited data set to save time
+# ID_market_data = CSV.read(ID_market_data_file_path, DataFrame, limit = 2*10^6) # <--- read a limited data set to save time during testing
 
 
 # # Define the trading session to optimise (delivery hour):
-# delivery_hour_to_optimise = "2023-01-01 01:00:00"
+delivery_hour_to_optimise = "2023-01-01 01:00:00"
 # delivery_hour_to_optimise = "2023-01-02 01:00:00"
 # delivery_hour_to_optimise = "2023-12-30 15:00:00" # why no profit? mistake?
 # delivery_hour_to_optimise = "2023-06-25 20:00:00" # high profit, few actions
@@ -40,10 +39,9 @@ ID_market_data = CSV.read(ID_market_data_file_path, DataFrame)
 # delivery_hour_to_optimise = "2023-05-28 12:00:00" # high profit, a lot of actions
 # delivery_hour_to_optimise = "2023-07-02 13:00:00" # high profit, a lot of actions. -275EUR prices? why??
 # delivery_hour_to_optimise = "2023-05-28 14:00:00" # high profit, a lot of actions. negative prices? why??
-# delivery_hour_to_optimise = "2023-05-28 12:00:00"
 # delivery_hour_to_optimise = "2023-05-28 15:00:00" # +-
 # delivery_hour_to_optimise = "2023-08-07 12:00:00" # +-
-delivery_hour_to_optimise = "2023-08-08 02:00:00"
+# delivery_hour_to_optimise = "2023-08-08 02:00:00"
 
 
 
@@ -179,11 +177,13 @@ plt1 = plot(
 
     # xlim = (-33, 0), # maximum 33 hours before the delivery time
     xlim = (minimum(hours_to_delivery), 0),
+    # xlim = (-3,-1),
+    # ylim = (-200,-50),
 
     # ylim = (DA_delivery_time_price-100, DA_delivery_time_price+100),
     # ylim = (mean(ID_market_data.bid_price) - std(ID_market_data.bid_price), mean(ID_market_data.bid_price) + std(ID_market_data.bid_price)),
     # ylim = (DA_delivery_time_price - std(ID_market_data.bid_price), DA_delivery_time_price + std(ID_market_data.bid_price)),
-    # ylim = (DA_delivery_time_price - std(ID_market_data.bid_price)/2, DA_delivery_time_price + std(ID_market_data.bid_price)/2),
+    ylim = (DA_delivery_time_price - std(ID_market_data.bid_price)/2, DA_delivery_time_price + std(ID_market_data.bid_price)/2),
 
     # ylim = (-11, 2),
 
@@ -310,7 +310,7 @@ end
 display(plt1)
 
 
-savefig("../results/run_optimal_backtest_1h_test4.png")
+savefig("../results/run_optimal_backtest_1h_test5.png")
 # savefig("../results/run_optimal_backtest_1h_test1.svg")
 # savefig("../results/run_optimal_backtest_1h_test1.pdf")
 
