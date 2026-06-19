@@ -30,6 +30,21 @@ function optimise_BESS_in_1_session(session_df::DataFrame;
     fee
     )
 
+    """
+    NOTE: In single-session financial trading, a buy/sell pair within the same delivery hour corresponds to zero physical delivery. 
+    The battery is never actually charged or discharged. Therefore, `eta_ch` and `eta_disch` MUST be 1.0 for a correct backtest.
+    Other values can be used for testing, but would NOT produce a valid trading backtest.
+
+    Using eta < 1 introduces TWO TYPES OF ERRORS:
+    1. Normal sessions: profit is underestimated.
+       The model can only sell eta_ch × eta_disch of what it buys (e.g. 81% for eta = 0.9).
+    2. Negative-price sessions: artificial profit is created. 
+       When both Ask and Bid are negative, charging earns money and discharging costs money. 
+       With eta = 0.9, the SoC balance requires discharging only 0.81 MWh per 1 MWh charged, 
+       so the model earns more from charging than it pays for discharging --> a phantom arbitrage.
+       The solver exploits this with hundreds of micro-trades, producing inflated profits that do not exist in reality.
+    """
+
     Δt = 1.0 # consider only 1-hour physical delivery products
 
     T = nrow(session_df)
@@ -65,7 +80,7 @@ function optimise_BESS_in_1_session(session_df::DataFrame;
     @constraint(Model_1_session, SoC[T] == SoC_final)
 
     # # Objective:
-    @objective(Model_1_session, Max, SoC_init*E_cost_0 
+    @objective(Model_1_session, Max, (SoC[T] - SoC_init)*E_cost_0 
                 + sum(((bid_prices[t] - fee)*disch[t] - (ask_prices[t] + fee)*ch[t]) * Δt for t in 1:T)
     )
 
@@ -88,7 +103,7 @@ function optimise_BESS_in_1_session(session_df::DataFrame;
         volume_ch = value.(ch),
         volume_disch = value.(disch),
         SoC = value.(SoC),
-        cum_revenue = cumsum((value.(disch) .* session_df.bid_price) - (value.(ch) .* session_df.ask_price))
+        cum_revenue = cumsum(((value.(disch) .* (session_df.bid_price .- fee)) - (value.(ch) .* (session_df.ask_price .+ fee))) .* Δt)
     )
 
     return objective_value(Model_1_session), BESS_optimisation_results

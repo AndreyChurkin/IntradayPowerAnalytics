@@ -117,7 +117,7 @@ Thus, SoC in this model is virtual and session-based.
 """
 BESS_energy_max = 2.0 # MWh
 BESS_energy_0 = 0.0 # initial energy (state of charge), MWh
-BESS_energy_cost_0 = 20 # charging cost of the initial energy capacity, EUR/MW
+BESS_energy_cost_0 = 20 # charging cost of the initial energy capacity, EUR/MWh
 BESS_eta_ch = 0.90 # battery charging efficiency factor
 BESS_eta_disch = 0.90 # battery discharging efficiency factor
 Trading_and_Clearing_fee = 0.124 # EUR/MWh (check Nord Pool or EPEX fee schedule)

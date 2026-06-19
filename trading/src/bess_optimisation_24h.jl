@@ -66,7 +66,7 @@ function optimise_BESS_in_1_session(session_df::DataFrame;
     @constraint(Model_24_sessions, SoC[T] == SoC_final)
 
     # # Objective:
-    @objective(Model_24_sessions, Max, SoC_init*E_cost_0 
+    @objective(Model_24_sessions, Max, (SoC[T] - SoC_init)*E_cost_0 
                 + sum(((bid_prices[t] - fee)*disch[t] - (ask_prices[t] + fee)*ch[t]) * Δt for t in 1:T)
     )
 
@@ -89,7 +89,7 @@ function optimise_BESS_in_1_session(session_df::DataFrame;
         volume_ch = value.(ch),
         volume_disch = value.(disch),
         SoC = value.(SoC),
-        cum_revenue = cumsum((value.(disch) .* session_df.bid_price) - (value.(ch) .* session_df.ask_price))
+        cum_revenue = cumsum(((value.(disch) .* (session_df.bid_price .- fee)) - (value.(ch) .* (session_df.ask_price .+ fee))) .* Δt)
     )
 
     return objective_value(Model_24_sessions), BESS_optimisation_results

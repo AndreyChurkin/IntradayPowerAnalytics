@@ -67,7 +67,7 @@ Such trading actions are possible, but would imply speculative trading.
 """
 BESS_energy_max = 2.0 # MWh
 BESS_energy_0 = 0.0 # initial energy (state of charge), MWh
-BESS_energy_cost_0 = 20 # charging cost of the initial energy capacity, EUR/MW
+BESS_energy_cost_0 = 20 # charging cost of the initial energy capacity, EUR/MWh
 BESS_eta_ch = 0.90 # battery charging efficiency factor
 BESS_eta_disch = 0.90 # battery discharging efficiency factor
 Trading_and_Clearing_fee = 0.124 # EUR/MWh (check Nord Pool or EPEX fee schedule)
@@ -181,6 +181,8 @@ CSV.write("..//results//bess_trading_summary_per_1h_session.csv",
 """ This is a preliminary visualisation of multiple 1-hour intraday trading sessions. It will be improved later """
 
 using StatsPlots
+
+fz = 18 # fontsize
 
 histogram(
     bess_trading_summary_per_1h_session.profit,

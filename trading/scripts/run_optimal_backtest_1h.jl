@@ -31,7 +31,7 @@ ID_market_data = CSV.read(ID_market_data_file_path, DataFrame)
 
 
 # # Define the trading session to optimise (delivery hour):
-delivery_hour_to_optimise = "2023-01-01 01:00:00"
+# delivery_hour_to_optimise = "2023-01-01 01:00:00"
 # delivery_hour_to_optimise = "2023-01-02 01:00:00"
 # delivery_hour_to_optimise = "2023-12-30 15:00:00" # why no profit? mistake?
 # delivery_hour_to_optimise = "2023-06-25 20:00:00" # high profit, few actions
@@ -41,7 +41,7 @@ delivery_hour_to_optimise = "2023-01-01 01:00:00"
 # delivery_hour_to_optimise = "2023-05-28 14:00:00" # high profit, a lot of actions. negative prices? why??
 # delivery_hour_to_optimise = "2023-05-28 15:00:00" # +-
 # delivery_hour_to_optimise = "2023-08-07 12:00:00" # +-
-# delivery_hour_to_optimise = "2023-08-08 02:00:00"
+delivery_hour_to_optimise = "2023-08-08 02:00:00"
 
 
 
@@ -116,13 +116,27 @@ DA_delivery_time_price = DA_market_data[!,"Day-ahead Price [EUR/MWh]"][DA_delive
 BESS_ch_power_max = 1.0 # MW
 BESS_dischch_power_max = 1.0 # MW
 """ 
-Note that charging more energy than BESS_ch_power_max is physically impossible within one delivery hour. 
+NOTE: Charging more energy than BESS_ch_power_max is physically impossible within one delivery hour. 
 Such trading actions are possible, but would imply speculative trading.
 Thus, SoC in this model is virtual and session-based.
 """
 BESS_energy_max = 2.0 # MWh
 BESS_energy_0 = 0.0 # initial energy (state of charge), MWh
-BESS_energy_cost_0 = 20 # charging cost of the initial energy capacity, EUR/MW
+BESS_energy_cost_0 = 20 # charging cost of the initial energy capacity, EUR/MWh
+"""
+NOTE: In single-session financial trading, a buy/sell pair within the same delivery hour corresponds to zero physical delivery. 
+The battery is never actually charged or discharged. Therefore, `eta_ch` and `eta_disch` MUST be 1.0 for a correct backtest.
+Other values can be used for testing purposes, but would NOT produce a valid trading backtest.
+
+Using eta < 1 introduces TWO TYPES OF ERRORS:
+1. Normal sessions: profit is underestimated.
+   The model can only sell eta_ch × eta_disch of what it buys (e.g. 81% for eta = 0.9).
+2. Negative-price sessions: artificial profit is created. 
+   When both Ask and Bid are negative, charging earns money and discharging costs money. 
+   With eta = 0.9, the SoC balance requires discharging only 0.81 MWh per 1 MWh charged, 
+   so the model earns more from charging than it pays for discharging --> a phantom arbitrage.
+   The solver exploits this with hundreds of micro-trades, producing inflated profits that do not exist in reality.
+"""
 BESS_eta_ch = 0.90 # battery charging efficiency factor
 BESS_eta_disch = 0.90 # battery discharging efficiency factor
 Trading_and_Clearing_fee = 0.124 # EUR/MWh (check Nord Pool or EPEX fee schedule)
@@ -183,7 +197,7 @@ plt1 = plot(
     # ylim = (DA_delivery_time_price-100, DA_delivery_time_price+100),
     # ylim = (mean(ID_market_data.bid_price) - std(ID_market_data.bid_price), mean(ID_market_data.bid_price) + std(ID_market_data.bid_price)),
     # ylim = (DA_delivery_time_price - std(ID_market_data.bid_price), DA_delivery_time_price + std(ID_market_data.bid_price)),
-    ylim = (DA_delivery_time_price - std(ID_market_data.bid_price)/2, DA_delivery_time_price + std(ID_market_data.bid_price)/2),
+    # ylim = (DA_delivery_time_price - std(ID_market_data.bid_price)/2, DA_delivery_time_price + std(ID_market_data.bid_price)/2),
 
     # ylim = (-11, 2),
 
