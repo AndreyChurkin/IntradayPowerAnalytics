@@ -90,7 +90,7 @@ function optimise_BESS_in_1_session(session_df::DataFrame;
     if termination_status(Model_1_session) == MOI.OPTIMAL
         printstyled("\n✅ Optimal solution found, objective value = ", objective_value(Model_1_session), color = :green)
     else
-        printstyled("\n❌ WARNING: Solver did not return an optimal solution. Status = ", termination_status(Model_1_session), color = :red)
+        error("❌ Solver did not return an optimal solution. Status = $(termination_status(Model_1_session))")
     end
 
     BESS_optimisation_results = DataFrame(

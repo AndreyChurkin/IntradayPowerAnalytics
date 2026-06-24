@@ -1,6 +1,5 @@
 """
 This code analyses and plots the optimal trading actions within one trading session only (for one delivery hour).
-It will later be extended to consider 24 parallel trading sessions.
 
 Andrey Churkin
 https://andreychurkin.ru/
@@ -137,8 +136,8 @@ Using eta < 1 introduces TWO TYPES OF ERRORS:
    so the model earns more from charging than it pays for discharging --> a phantom arbitrage.
    The solver exploits this with hundreds of micro-trades, producing inflated profits that do not exist in reality.
 """
-BESS_eta_ch = 0.90 # battery charging efficiency factor
-BESS_eta_disch = 0.90 # battery discharging efficiency factor
+BESS_eta_ch = 1.00 # battery charging efficiency factor
+BESS_eta_disch = 1.00 # battery discharging efficiency factor
 Trading_and_Clearing_fee = 0.124 # EUR/MWh (check Nord Pool or EPEX fee schedule)
 
 
@@ -324,8 +323,8 @@ end
 display(plt1)
 
 
-savefig("../results/run_optimal_backtest_1h_test5.png")
-# savefig("../results/run_optimal_backtest_1h_test1.svg")
-# savefig("../results/run_optimal_backtest_1h_test1.pdf")
+savefig("../results/run_optimal_backtest_single_1h_session.png")
+# savefig("../results/run_optimal_backtest_single_1h_session.svg")
+# savefig("../results/run_optimal_backtest_single_1h_session.pdf")
 
 

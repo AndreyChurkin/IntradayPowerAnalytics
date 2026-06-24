@@ -31,9 +31,9 @@ ID_market_data_full = CSV.read(ID_market_data_file_path, DataFrame)
 
 # # Define the vector of trading sessions to optimise (delivery hours):
 all_unique_delivery_hours = sort(unique(ID_market_data_full.delivery_start))
-# delivery_hours_to_optimise = all_unique_delivery_hours[1:end]
-delivery_hours_to_optimise = all_unique_delivery_hours[2019:end]
-
+# delivery_hours_to_optimise = all_unique_delivery_hours[1:100]
+delivery_hours_to_optimise = all_unique_delivery_hours[1:end]
+# delivery_hours_to_optimise = all_unique_delivery_hours[2019:end]
 
 
 # # Read the day-ahead market data:
@@ -62,14 +62,29 @@ end
 BESS_ch_power_max = 1.0 # MW
 BESS_dischch_power_max = 1.0 # MW
 """ 
-Note that charging more energy than BESS_ch_power_max is physically impossible within one delivery hour. 
+NOTE: Charging more energy than BESS_ch_power_max is physically impossible within one delivery hour. 
 Such trading actions are possible, but would imply speculative trading.
+Thus, SoC in this model is virtual and session-based.
 """
 BESS_energy_max = 2.0 # MWh
 BESS_energy_0 = 0.0 # initial energy (state of charge), MWh
 BESS_energy_cost_0 = 20 # charging cost of the initial energy capacity, EUR/MWh
-BESS_eta_ch = 0.90 # battery charging efficiency factor
-BESS_eta_disch = 0.90 # battery discharging efficiency factor
+"""
+NOTE: In single-session financial trading, a buy/sell pair within the same delivery hour corresponds to zero physical delivery. 
+The battery is never actually charged or discharged. Therefore, `eta_ch` and `eta_disch` MUST be 1.0 for a correct backtest.
+Other values can be used for testing purposes, but would NOT produce a valid trading backtest.
+
+Using eta < 1 introduces TWO TYPES OF ERRORS:
+1. Normal sessions: profit is underestimated.
+   The model can only sell eta_ch × eta_disch of what it buys (e.g. 81% for eta = 0.9).
+2. Negative-price sessions: artificial profit is created. 
+   When both Ask and Bid are negative, charging earns money and discharging costs money. 
+   With eta = 0.9, the SoC balance requires discharging only 0.81 MWh per 1 MWh charged, 
+   so the model earns more from charging than it pays for discharging --> a phantom arbitrage.
+   The solver exploits this with hundreds of micro-trades, producing inflated profits that do not exist in reality.
+"""
+BESS_eta_ch = 1.00 # battery charging efficiency factor
+BESS_eta_disch = 1.00 # battery discharging efficiency factor
 Trading_and_Clearing_fee = 0.124 # EUR/MWh (check Nord Pool or EPEX fee schedule)
 
 
@@ -82,7 +97,12 @@ bess_trading_summary_per_1h_session = DataFrame(
     number_of_actions = Int[]
 )
 
+include("../src/bess_optimisation_1h.jl")
+
+t_start = time()
+
 for session = 1:length(delivery_hours_to_optimise)
+    t_session_start = time()
     delivery_hour_to_optimise = delivery_hours_to_optimise[session]
     print("\nOptimising session #",session,", delivery_start = ",delivery_hour_to_optimise)
 
@@ -137,22 +157,19 @@ for session = 1:length(delivery_hours_to_optimise)
 
 
     """ Building and solving the BESS trading optimisation model """
+
     @suppress begin
-
-        include("../src/bess_optimisation_1h.jl")
-
-        global BESS_objective_value, BESS_optimisation_results = optimise_BESS_in_1_session(ID_market_data_session;
-            E_max = BESS_energy_max, 
-            P_ch_max = BESS_ch_power_max, 
-            P_disch_max = BESS_dischch_power_max, 
-            eta_ch = BESS_eta_ch, 
-            eta_disch = BESS_eta_disch, 
-            SoC_init = BESS_energy_0, 
-            SoC_final = BESS_energy_0, 
-            E_cost_0 = BESS_energy_cost_0,
-            fee = Trading_and_Clearing_fee
-        )
-
+    global BESS_objective_value, BESS_optimisation_results = optimise_BESS_in_1_session(ID_market_data_session;
+        E_max = BESS_energy_max,
+        P_ch_max = BESS_ch_power_max,
+        P_disch_max = BESS_dischch_power_max,
+        eta_ch = BESS_eta_ch,
+        eta_disch = BESS_eta_disch,
+        SoC_init = BESS_energy_0,
+        SoC_final = BESS_energy_0,
+        E_cost_0 = BESS_energy_cost_0,
+        fee = Trading_and_Clearing_fee
+    )
     end # @suppress
 
     global BESS_optimisation_results_only_actions = filter(row -> (row.volume_ch != 0 || row.volume_disch != 0),
@@ -167,14 +184,20 @@ for session = 1:length(delivery_hours_to_optimise)
     println("The optimal BESS strategy includes ",nrow(BESS_optimisation_results_only_actions)," actions")
     println("Maximum achievable profit = ",BESS_objective_value," EUR")
 
+    t_session  = round(time() - t_session_start, digits=1)
+    t_elapsed  = round((time() - t_start) / 60,  digits=1)
+    t_remaining = round((time() - t_start) / session * (length(delivery_hours_to_optimise) - session) / 60, digits=1)
+    println("⏱️  Session time: $(t_session)s | Elapsed: $(t_elapsed) min | ETA: $(t_remaining) min")
 
 end
 
+t_total = round((time() - t_start) / 60,  digits=1)
+println("\n ⏱️  TOTAL time elapsed: $t_total")
 
-CSV.write("..//results//bess_trading_summary_per_1h_session.csv",
+
+CSV.write("..//results//bess_optimal_backtest_summary_multi_1h_sessions.csv",
           bess_trading_summary_per_1h_session
 )
-
 
 
 
@@ -182,37 +205,75 @@ CSV.write("..//results//bess_trading_summary_per_1h_session.csv",
 
 using StatsPlots
 
-fz = 18 # fontsize
+fz = 16
 
-histogram(
+plt_histogram_profit = histogram(
     bess_trading_summary_per_1h_session.profit,
     bins = 100,
-    xlabel = "Profit, EUR",
+    size = (1000,600), # width and height of the whole plot (in px)
+    xlabel = "Profit, EUR", 
     ylabel = "Frequency",
+    xformatter = :plain,  # disables scientific notation   
     title = "Distribution of BESS trading profit (in 1h sessions)",
+    # xlim = (0, maximum(bess_trading_summary_per_1h_session.profit)),
     legend = false,
-    titlefont = 8,
-    fontfamily = "Courier"
+    fontfamily = "Courier",
+    titlefontsize = fz-3,
+    xtickfontsize = fz,
+    ytickfontsize = fz,
+    xguidefontsize = fz,
+    yguidefontsize = fz,
+    legendfont = fz-3,
+    color = :grey,
+    framestyle = :box,
+    # margin = 10mm,
+    left_margin = 10mm,
+    right_margin = 10mm,
+    top_margin = 10mm,
+    bottom_margin = 10mm,
+    # minorgrid = :true
 )
+display(plt_histogram_profit)
+savefig("../results/bess_optimal_backtest_multi_1h_sessions_histogram_profit.png")
+# savefig("../results/bess_optimal_backtest_multi_1h_sessions_histogram_profit.svg")
+# savefig("../results/bess_optimal_backtest_multi_1h_sessions_histogram_profit.pdf")
 
-histogram(
+plt_histogram_actions = histogram(
     bess_trading_summary_per_1h_session.number_of_actions,
     bins = 100,
+    size = (1000,600), # width and height of the whole plot (in px)
     xlabel = "Number of actions",
     ylabel = "Frequency",
+    xformatter = :plain,  # disables scientific notation   
     title = "Total number of BESS trading actions (in 1h sessions)",
+    # xlim = (0, maximum(bess_trading_summary_per_1h_session.number_of_actions)),
     legend = false,
-    titlefont = 8,
     fontfamily = "Courier",
-    color = palette(:tab10)[5]
+    titlefontsize = fz-3,
+    xtickfontsize = fz,
+    ytickfontsize = fz,
+    xguidefontsize = fz,
+    yguidefontsize = fz,
+    legendfont = fz-3,
+    # color = palette(:tab10)[5]
+    color = :grey,
+    framestyle = :box,
+    # margin = 10mm,
+    left_margin = 10mm,
+    right_margin = 10mm,
+    top_margin = 10mm,
+    bottom_margin = 10mm,
+    # minorgrid = :true
 )
+display(plt_histogram_actions)
+savefig("../results/bess_optimal_backtest_multi_1h_sessions_histogram_actions.png")
+# savefig("../results/bess_optimal_backtest_multi_1h_sessions_histogram_actions.svg")
+# savefig("../results/bess_optimal_backtest_multi_1h_sessions_histogram_actions.pdf")
 
-scatter(
-    bess_trading_summary_per_1h_session.number_of_actions,
-    bess_trading_summary_per_1h_session.profit,
+plt_scatter_actions_vs_profit = plot(
     xlabel = "Total number of optimal BESS actions",
     ylabel = "Profit per session, EUR",
-    size = (1100,1000), 
+    size = (1100,1000), # width and height of the whole plot (in px)
     # xlim = (-20, 1000),
     # ylim = (-200, 10000),
     xtickfontsize=fz, ytickfontsize=fz,
@@ -224,12 +285,35 @@ scatter(
     legend = :topleft,
     framestyle = :box,
     # margin = 10mm,
-    left_margin = 20mm,
+    left_margin = 10mm,
     right_margin = 10mm,
     top_margin = 10mm,
     bottom_margin = 10mm,
     minorgrid = :true
 )
+
+scatter!(plt_scatter_actions_vs_profit,
+    bess_trading_summary_per_1h_session.number_of_actions,
+    bess_trading_summary_per_1h_session.profit,
+    xlabel = "Number of actions",
+    ylabel = "Profit, EUR",
+    xformatter = :plain,  # disables scientific notation   
+    yformatter = :plain,  # disables scientific notation    
+    # title = "Profit vs number of actions (in 1h Sessions)",
+    legend = false,
+    titlefont = 8,
+    fontfamily = "Courier",
+    color = :black,
+    # color = palette(:tab10)[5],
+    alpha = 0.3,
+    markerstrokewidth = 0,
+    markersize = 6
+)
+
+display(plt_scatter_actions_vs_profit)
+savefig("../results/bess_optimal_backtest_multi_1h_sessions_scatter_actions_vs_profit.png")
+# savefig("../results/bess_optimal_backtest_multi_1h_sessions_scatter_actions_vs_profit.svg")
+# savefig("../results/bess_optimal_backtest_multi_1h_sessions_scatter_actions_vs_profit.pdf")
 
 
 action_profit_correlation = cor(
@@ -237,4 +321,4 @@ action_profit_correlation = cor(
     bess_trading_summary_per_1h_session.profit
 )
 
-println("Action-profit correlation: ", round(action_profit_correlation, digits=3))
+println("\nAction-profit correlation: ", round(action_profit_correlation, digits=3))
