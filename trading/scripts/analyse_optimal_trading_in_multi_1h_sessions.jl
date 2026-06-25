@@ -18,7 +18,7 @@ println(pwd())
 
 
 
-bess_trading_summary_per_1h_session = CSV.read("..//results//bess_trading_summary_per_1h_session_8737_results (wrong).csv", DataFrame)
+bess_trading_summary_per_1h_session = CSV.read("..//results//bess_optimal_backtest_summary_multi_1h_sessions_8737_results.csv", DataFrame)
 
 fz = 16
 
@@ -31,6 +31,7 @@ plt_histogram_profit = histogram(
     xformatter = :plain,  # disables scientific notation   
     title = "Distribution of BESS trading profit (in 1h sessions)",
     # xlim = (0, maximum(bess_trading_summary_per_1h_session.profit)),
+    # ylim = (0, 2000),
     legend = false,
     fontfamily = "Courier",
     titlefontsize = fz-3,
@@ -120,7 +121,7 @@ scatter!(plt_scatter_actions_vs_profit,
     fontfamily = "Courier",
     color = :black,
     # color = palette(:tab10)[5],
-    alpha = 0.3,
+    alpha = 0.2,
     markerstrokewidth = 0,
     markersize = 6
 )

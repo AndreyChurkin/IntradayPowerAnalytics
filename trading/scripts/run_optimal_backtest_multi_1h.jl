@@ -192,7 +192,7 @@ for session = 1:length(delivery_hours_to_optimise)
 end
 
 t_total = round((time() - t_start) / 60,  digits=1)
-println("\n ⏱️  TOTAL time elapsed: $t_total")
+println("\n ⏱️  TOTAL time elapsed: $t_total min")
 
 
 CSV.write("..//results//bess_optimal_backtest_summary_multi_1h_sessions.csv",
