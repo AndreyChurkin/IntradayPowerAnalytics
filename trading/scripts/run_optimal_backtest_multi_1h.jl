@@ -1,6 +1,6 @@
 """
 Analyses multiple 1-hour intraday trading sessions in a loop, one by one.
-For each session, computes the optimal BESS trading actions and the maximum achievable profit.
+For each session, computes the optimal BESS trading actions and the maximum achievable profit (EUR).
 
 
 Andrey Churkin

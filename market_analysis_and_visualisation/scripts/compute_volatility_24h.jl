@@ -140,6 +140,6 @@ density!(plt_density_24h,
 
 display(plt_density_24h)
 
-savefig("results/compute_volatility_24h_test1.png")
-# savefig("results/compute_volatility_24h_test1.svg")
-# savefig("results/compute_volatility_24h_test1.pdf")
+savefig("../results/compute_volatility_24h_test1.png")
+# savefig("../results/compute_volatility_24h_test1.svg")
+# savefig("../results/compute_volatility_24h_test1.pdf")

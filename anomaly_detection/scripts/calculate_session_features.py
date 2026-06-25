@@ -80,8 +80,10 @@ DA_market_data = DA_market_data.sort_values(by='MTU (CET/CEST)', ascending=True)
 classify_N_sessions = len(unique_delivery_start)
 
 
-# Defining the features to characterise trading sessions
-feature_columns = ["hour_number", "session_length_hours", "total_number_of_orders",
+# Defining the features to characterise trading sessions:
+# Note that delivery_start is carried as an identifier for merging — it won't be used as a feature by anomaly detection models
+feature_columns = ["delivery_start",
+                   "hour_number", "session_length_hours", "total_number_of_orders",
                    "DA_price",
                    "Ask_mean_price", "Ask_price_std",
                    "Bid_mean_price", "Bid_price_std",
@@ -119,7 +121,8 @@ for i in tqdm(range(classify_N_sessions), desc="Calculating features for the ses
     Bid_mean_price = session_bid_prices.mean()
     Bid_price_std = session_bid_prices.std()
 
-    rows.append([session_hour_number, session_length_hours, total_number_of_orders,
+    rows.append([session_delivery_start,
+                 session_hour_number, session_length_hours, total_number_of_orders,
                  session_DA_price,
                  Ask_mean_price, Ask_price_std,
                  Bid_mean_price, Bid_price_std

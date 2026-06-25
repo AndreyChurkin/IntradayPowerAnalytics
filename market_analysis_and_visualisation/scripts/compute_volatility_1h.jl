@@ -139,6 +139,6 @@ density!(plt_density_1h,
 
 display(plt_density_1h)
 
-savefig("results/compute_volatility_1h_test1.png")
-# savefig("results/compute_volatility_1h_test1.svg")
-# savefig("results/compute_volatility_1h_test1.pdf")
+savefig("../results/compute_volatility_1h_test1.png")
+# savefig("../results/compute_volatility_1h_test1.svg")
+# savefig("../results/compute_volatility_1h_test1.pdf")

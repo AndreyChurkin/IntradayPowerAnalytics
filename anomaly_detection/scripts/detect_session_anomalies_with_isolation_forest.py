@@ -1,6 +1,6 @@
 """
-Detects anomalous intraday trading sessions in a given intraday continuous market dataset.
-Isolation Forest algorithm is used for anomaly detection here.
+Detects anomalous trading sessions in a given intraday continuous market dataset.
+The Isolation Forest algorithm is used for anomaly detection here.
 
 Input:  pre-computed session features CSV
 Output: session anomaly scores CSV and visualisations
@@ -37,9 +37,12 @@ FZ            = 14     # base font size for all plots
 # ── Load features CSC ─────────────────────────────────────────────────────────
 
 df_features = pd.read_csv("../results/session_features_8737_v1.csv")
-print(f"\nFeatures loaded: {len(df_features)} sessions, {df_features.shape[1]} features")
 
-X = df_features.values
+# Exclude delivery_start — it is a string identifier, not a numeric feature
+X = df_features.drop(columns=["delivery_start"]).values
+
+print(f"\nFeatures loaded: {len(df_features)} sessions, {X.shape[1]} features")
+
 
 
 # ── Isolation Forest ──────────────────────────────────────────────────────────
@@ -57,7 +60,7 @@ df_features["Anomaly_score"] = iso_forest.decision_function(X) # continuous scor
 anomaly_sessions = df_features[df_features["Anomaly"] == -1]
 print(f"\nAnomalous sessions detected: {len(anomaly_sessions)} "
       f"({100 * len(anomaly_sessions) / len(df_features):.1f}%)")
-print(anomaly_sessions.sort_values("Anomaly_score").to_string())
+print(anomaly_sessions.sort_values("Anomaly_score").head(20).to_string())
 
 
 # ── Save results ──────────────────────────────────────────────────────────────
