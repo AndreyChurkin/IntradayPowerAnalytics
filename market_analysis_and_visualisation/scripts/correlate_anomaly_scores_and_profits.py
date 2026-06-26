@@ -1,5 +1,5 @@
 """
-Correlates session anomaly scores with optimal trading profitability to investigate
+Correlates session anomaly scores with optimal BESS trading profitability to investigate
 whether anomalous market sessions offer systematically different profit opportunities.
 
 Inputs:
@@ -7,11 +7,11 @@ Inputs:
   - Session trading profits CSV (output of the optimal backtesting pipeline)
 
 Outputs saved to results/:
-  - anomaly_profit_merged.csv          — merged dataset (anomaly scores + profits)
-  - anomaly_profit_statistics.csv      — group statistics and correlation coefficients
-  - scatter_anomaly_score_vs_profit    — PNG, PDF, SVG
-  - violin_profit_by_anomaly_group     — PNG, PDF, SVG
-  - histogram_profit_by_anomaly_group  — PNG, PDF, SVG
+  - session_anomaly_score_and_profit_merged.csv          — merged dataset (anomaly scores + profits)
+  - session_anomaly_score_and_profit_statistics.csv      — group statistics and correlation coefficients
+  - scatter_anomaly_score_vs_profit                      — PNG, PDF, SVG
+  - violin_profit_by_anomaly_group                       — PNG, PDF, SVG
+  - ........TO UPDATE!
 
 Analysis steps:
   1. Merge the two datasets on the shared session identifier
@@ -77,8 +77,8 @@ if len(df) < len(df_anomaly) or len(df) < len(df_profit):
           f"during merge — check SESSION_KEY alignment between the two files.")
 
 os.makedirs("../results", exist_ok=True)
-df.to_csv("../results/anomaly_profit_merged.csv", index=False)
-print("Saved: ../results/anomaly_profit_merged.csv")
+df.to_csv("../results/session_anomaly_score_and_profit_merged.csv", index=False)
+print("Saved: ../results/session_anomaly_score_and_profit_merged.csv")
 
 
 # ── Step 2: Correlation — anomaly score vs profit ─────────────────────────────
@@ -140,8 +140,8 @@ stats["spearman_p"]    = spearman_p
 stats["mannwhitney_U"] = mw_stat
 stats["mannwhitney_p"] = mw_p
 
-stats.to_csv("../results/anomaly_profit_statistics.csv", index=False)
-print("\nSaved: ../results/anomaly_profit_statistics.csv")
+stats.to_csv("../results/session_anomaly_score_and_profit_statistics.csv", index=False)
+print("\nSaved: ../results/session_anomaly_score_and_profit_statistics.csv")
 
 
 # ── Step 4: Visualisation ─────────────────────────────────────────────────────
@@ -212,26 +212,38 @@ for part in ["cmedians", "cbars", "cmins", "cmaxes"]:
 
 median_normal    = df_normal[PROFIT_COL].median()
 median_anomalous = df_anomalous[PROFIT_COL].median()
+mean_normal      = df_normal[PROFIT_COL].mean()
+mean_anomalous   = df_anomalous[PROFIT_COL].mean()
+
+# Colored dots for medians (overlaid on the median line drawn by violinplot)
+ax2.scatter([1], [median_normal],    color=COLOR_NORMAL,    s=60, zorder=5,
+            marker="o", edgecolors="k", linewidths=0.7,
+            label=f"Normal median: {median_normal:.1f} EUR")
+ax2.scatter([2], [median_anomalous], color=COLOR_ANOMALOUS, s=60, zorder=5,
+            marker="o", edgecolors="k", linewidths=0.7,
+            label=f"Anomalous median: {median_anomalous:.1f} EUR")
+
+# Colored X markers for means
+ax2.scatter([1], [mean_normal],    color=COLOR_NORMAL,    s=60, zorder=5,
+            marker="X", edgecolors="k", linewidths=0.7,
+            label=f"Normal mean: {mean_normal:.1f} EUR")
+ax2.scatter([2], [mean_anomalous], color=COLOR_ANOMALOUS, s=60, zorder=5,
+            marker="X", edgecolors="k", linewidths=0.7,
+            label=f"Anomalous mean: {mean_anomalous:.1f} EUR")
 
 ax2.set_xticks([1, 2])
-ax2.set_xticklabels([f"Normal\n(n={len(df_normal)})",
-                     f"Anomalous\n(n={len(df_anomalous)})"], fontsize=FZ)
+ax2.set_xticklabels([
+    f"Normal\n(n={len(df_normal)})",
+    f"Anomalous\n(n={len(df_anomalous)})"
+], fontsize=FZ)
 ax2.set_ylabel("Optimal trading profit, EUR", fontsize=FZ)
 ax2.tick_params(labelsize=FZ)
 ax2.axhline(0, color="grey", linewidth=0.9, linestyle="--")
 
-# Median value annotations next to the median line of each violin
-ax2.text(1.08, median_normal,    f"Median: {median_normal:.1f} EUR",
-         color=COLOR_NORMAL,    fontsize=FZ - 3, verticalalignment="center")
-ax2.text(2.08, median_anomalous, f"Median: {median_anomalous:.1f} EUR",
-         color=COLOR_ANOMALOUS, fontsize=FZ - 3, verticalalignment="center")
-
-# Mann-Whitney p-value annotation
-ax2.text(0.98, 0.97,
-         f"Mann-Whitney p = {mw_p:.1e}",
-         transform=ax2.transAxes, fontsize=FZ - 3,
-         horizontalalignment="right", verticalalignment="top",
-         bbox=dict(boxstyle="round", facecolor="white", alpha=0.8))
+from matplotlib.lines import Line2D
+mw_entry = Line2D([], [], color="none", label=f"Mann-Whitney p = {mw_p:.1e}")
+handles, _ = ax2.get_legend_handles_labels()
+ax2.legend(handles=[*handles, mw_entry], fontsize=FZ - 3, loc="upper left")
 
 ax2.grid(which="major", alpha=0.4)
 ax2.minorticks_on()
